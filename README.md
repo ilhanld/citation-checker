@@ -63,6 +63,14 @@ docker compose up -d --build
 
 Le conteneur tourne sans droits root, en lecture seule, avec 256 Mo de mémoire maximum, et n'est publié que sur `127.0.0.1:8765` de la machine : c'est un proxy HTTPS (nginx) placé devant qui l'expose. Les textes reçus ne sont ni enregistrés ni journalisés, et des limites protègent le serveur (document : 40 000 caractères, 15 citations). Le texte collé est envoyé au serveur pour être vérifié : à ne pas utiliser avec des documents confidentiels.
 
+Derrière Nginx Proxy Manager (même serveur) : `compose.prod.yaml` branche l'appli sur son réseau Docker, qui la joint par `citation-checker:8765` et gère le HTTPS.
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+```
+
+Pour ne pas retaper les `-f`, créer sur le serveur un fichier `.env` (ignoré par git) contenant `COMPOSE_FILE=compose.yaml:compose.prod.yaml`.
+
 Sans Docker : `NO_BROWSER=1 PORT=8765 python3 app.py`.
 
 ## Tests

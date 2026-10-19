@@ -1,0 +1,13 @@
+# Ajout pour le serveur : branche l'appli sur le réseau de Nginx Proxy Manager,
+# qui la joint par son nom (citation-checker:8765) et gère le HTTPS.
+# Usage : docker compose -f compose.yaml -f compose.prod.yaml up -d
+services:
+  citation-checker:
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: nginx-proxy-manager_default
