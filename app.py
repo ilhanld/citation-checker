@@ -2,7 +2,7 @@
 
 Lancer : python3 app.py  -> http://127.0.0.1:8765
 Par défaut, le serveur n'écoute que sur 127.0.0.1 : le texte saisi reste sur la machine.
-Hébergement : HOST=0.0.0.0 PORT=8765 python3 app.py (derrière un proxy HTTPS). Les textes reçus ne sont ni
+Hébergement : NO_BROWSER=1 PORT=8765 python3 app.py (derrière un proxy HTTPS). Les textes reçus ne sont ni
 enregistrés ni journalisés.
 """
 import json
@@ -277,7 +277,7 @@ def main():
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = f"http://{HOST}:{PORT}"
     print(f"Interface disponible sur {url} (Ctrl+C pour arrêter)")
-    if HOST in ("127.0.0.1", "localhost"):
+    if HOST in ("127.0.0.1", "localhost") and not os.environ.get("NO_BROWSER"):
         webbrowser.open(url)
     try:
         server.serve_forever()

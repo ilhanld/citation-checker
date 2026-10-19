@@ -57,7 +57,7 @@ Aucune réponse d'IA n'est pré-écrite dans les exemples : la réponse vient d'
 
 ## Hébergement
 
-Par défaut le serveur n'écoute que sur `127.0.0.1`. Pour l'héberger : `HOST=0.0.0.0 PORT=8765 python3 app.py`, derrière un proxy HTTPS. Les textes reçus ne sont ni enregistrés ni journalisés, et des limites protègent le serveur (document : 40 000 caractères, 15 citations). Le texte collé est envoyé au serveur pour être vérifié : à ne pas utiliser avec des documents confidentiels.
+Par défaut le serveur n'écoute que sur `127.0.0.1`. Pour l'héberger : `NO_BROWSER=1 PORT=8765 python3 app.py` derrière un proxy HTTPS (nginx), le serveur écoutant seulement en local. Les textes reçus ne sont ni enregistrés ni journalisés, et des limites protègent le serveur (document : 40 000 caractères, 15 citations). Le texte collé est envoyé au serveur pour être vérifié : à ne pas utiliser avec des documents confidentiels.
 
 ## Tests
 
