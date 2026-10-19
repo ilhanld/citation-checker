@@ -4,7 +4,7 @@ import unittest
 
 import re
 
-from app import analyse, load_examples
+from app import MAX_CITATIONS, MAX_DOCUMENT_CHARS, analyse, load_examples, validate
 from citation_checker import (check_citation, closest_sentence, diff_words, main, normalize,
                               score, verify_answer, verify_citations)
 
@@ -144,6 +144,13 @@ class TestInterface(unittest.TestCase):
         ]
         statuses = [r["status"] for r in analyse(document, quotes)["results"]]
         self.assertEqual(statuses, ["exact", "exact", "approximate", "missing"])
+
+    def test_validate_refuses_oversized_input(self):
+        with self.assertRaises(ValueError):
+            validate("a" * (MAX_DOCUMENT_CHARS + 1), ["citation"])
+        with self.assertRaises(ValueError):
+            validate("texte", ["citation"] * (MAX_CITATIONS + 1))
+        validate("texte", ["citation"])
 
     def test_examples_have_a_document_and_a_question_but_no_prewritten_answer(self):
         for example in load_examples():

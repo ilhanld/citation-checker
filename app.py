@@ -1,18 +1,38 @@
 """Interface web locale du vérificateur de citations (bibliothèque standard uniquement).
 
 Lancer : python3 app.py  -> http://127.0.0.1:8765
-Le texte saisi reste sur ta machine : le serveur n'écoute que sur 127.0.0.1.
+Par défaut, le serveur n'écoute que sur 127.0.0.1 : le texte saisi reste sur la machine.
+Hébergement : HOST=0.0.0.0 PORT=8765 python3 app.py (derrière un proxy HTTPS). Les textes reçus ne sont ni
+enregistrés ni journalisés.
 """
 import json
+import os
 import sys
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from citation_checker import check_citation, closest_sentence, diff_words, verify_answer
 
-HOST, PORT = "127.0.0.1", 8765
+HOST = os.environ.get("HOST", "127.0.0.1")
+PORT = int(os.environ.get("PORT", "8765"))
 HERE = Path(__file__).parent
+
+# Limites : la comparaison coûte environ 3 s par citation introuvable sur 67 000 caractères.
+MAX_DOCUMENT_CHARS = 40_000
+MAX_CITATIONS = 15
+MAX_CITATION_CHARS = 1_000
+MAX_BODY_BYTES = 200_000
+
+
+def validate(document, citations):
+    """Refuse les entrées trop grosses (site public). Lève ValueError avec un message affichable."""
+    if len(document) > MAX_DOCUMENT_CHARS:
+        raise ValueError(f"Document trop long ({len(document)} caractères, maximum {MAX_DOCUMENT_CHARS}).")
+    if len(citations) > MAX_CITATIONS:
+        raise ValueError(f"Trop de citations ({len(citations)}, maximum {MAX_CITATIONS}).")
+    if any(len(c) > MAX_CITATION_CHARS for c in citations):
+        raise ValueError(f"Une citation dépasse {MAX_CITATION_CHARS} caractères.")
 
 
 def analyse(document, citations):
@@ -113,7 +133,8 @@ PAGE = r"""<!doctype html>
 </section>
 
 <div id="out" aria-live="polite"></div>
-<footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement.</footer>
+<footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement.<br>
+Quand cette page est hébergée en ligne, le texte collé est envoyé au serveur pour être vérifié, sans être enregistré : n'y colle pas de document confidentiel.</footer>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -162,7 +183,9 @@ $("go").onclick = async () => {
   }
   const res = await fetch("/verify", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document: $("doc").value, citations }) });
-  render(await res.json());
+  const report = await res.json();
+  if (report.error) { $("out").innerHTML = '<div class="verdict no">' + esc(report.error) + "</div>"; return; }
+  render(report);
 };
 
 const MAX_URL = 6000;
@@ -231,9 +254,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send("Introuvable", "text/plain", 404)
         try:
             size = int(self.headers.get("Content-Length", 0))
+            if size > MAX_BODY_BYTES:
+                raise ValueError("Requête trop volumineuse.")
             payload = json.loads(self.rfile.read(size))
-            report = analyse(str(payload.get("document", "")), [str(c) for c in payload.get("citations", [])])
-        except (ValueError, TypeError, AttributeError):
+            document = str(payload.get("document", ""))
+            citations = [str(c) for c in payload.get("citations", [])]
+            validate(document, citations)
+            report = analyse(document, citations)
+        except json.JSONDecodeError:
+            return self._send(json.dumps({"error": "requête invalide"}), "application/json", 400)
+        except ValueError as error:  # entrée trop grosse : le message est fait pour être affiché
+            return self._send(json.dumps({"error": str(error)}), "application/json", 400)
+        except (TypeError, AttributeError):
             return self._send(json.dumps({"error": "requête invalide"}), "application/json", 400)
         self._send(json.dumps(report), "application/json")
 
@@ -242,10 +274,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    server = HTTPServer((HOST, PORT), Handler)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = f"http://{HOST}:{PORT}"
     print(f"Interface disponible sur {url} (Ctrl+C pour arrêter)")
-    webbrowser.open(url)
+    if HOST in ("127.0.0.1", "localhost"):
+        webbrowser.open(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
