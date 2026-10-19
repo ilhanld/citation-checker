@@ -2,8 +2,9 @@ import json
 import os
 import unittest
 
-from citation_checker import (check_citation, main, normalize, score, verify_answer,
-                              verify_citations)
+from app import analyse
+from citation_checker import (check_citation, closest_sentence, diff_words, main, normalize,
+                              score, verify_answer, verify_citations)
 
 DOC = """Acte de vente du 12 mars 2019.
 Le vendeur déclare que le bien est libre de toute  hypothèque.
@@ -107,6 +108,25 @@ class TestCommandeEtExemples(unittest.TestCase):
         for name in ("reponse_ok.json", "reponse_inventee.json"):
             with open(os.path.join(self.base, name), encoding="utf-8") as f:
                 self.assertIn("citations", json.load(f))
+
+
+class TestInterface(unittest.TestCase):
+    def test_closest_sentence_returns_original_text(self):
+        passage, sim = closest_sentence(DOC, "Une servitude de passage greve la parcelle")
+        self.assertEqual(passage, "Une servitude de passage grève la parcelle.")
+        self.assertGreater(sim, 0.9)
+
+    def test_diff_words_marks_only_the_changed_word(self):
+        left, right = diff_words("jusqu'au 30 juin 2028", "jusqu'au 30 juin 2027")
+        self.assertEqual([w for w, changed in left if changed], ["2028"])
+        self.assertEqual([w for w, changed in right if changed], ["2027"])
+
+    def test_analyse_adds_comparison_only_for_non_exact(self):
+        report = analyse(DOC, ["Une servitude de passage grève la parcelle.",
+                               "Une servitude de passage grève les deux parcelles."])
+        self.assertNotIn("passage", report["results"][0])
+        self.assertIn("passage", report["results"][1])
+        self.assertFalse(report["sourced"])
 
 
 if __name__ == "__main__":

@@ -41,6 +41,14 @@ report = verify_answer(document, {"text": "…", "citations": ["…", "…"]})
 report["sourced"], report["score"], report["missing"], report["approximate"]
 ```
 
+## Interface web (locale)
+
+```bash
+python3 app.py
+```
+
+Ouvre `http://127.0.0.1:8765` : on colle un document et les citations (une par ligne), le bouton « Charger l'exemple » remplit la démo. Chaque citation est classée exacte / à relire / introuvable, avec la phrase la plus proche du document et le mot qui diffère surligné. Aucune dépendance (bibliothèque standard), le serveur n'écoute que sur `127.0.0.1` : le texte saisi ne quitte pas la machine.
+
 ## Tests
 
 ```bash
