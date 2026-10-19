@@ -2,7 +2,9 @@ import json
 import os
 import unittest
 
-from app import analyse
+import re
+
+from app import analyse, load_examples
 from citation_checker import (check_citation, closest_sentence, diff_words, main, normalize,
                               score, verify_answer, verify_citations)
 
@@ -127,6 +129,17 @@ class TestInterface(unittest.TestCase):
         self.assertNotIn("passage", report["results"][0])
         self.assertIn("passage", report["results"][1])
         self.assertFalse(report["sourced"])
+
+    def test_long_example_gives_each_kind_of_result(self):
+        example = load_examples()[0]
+        quotes = re.findall(r"«\s*([^»]+?)\s*»", example["answer"])
+        statuses = [r["status"] for r in analyse(example["document"], quotes)["results"]]
+        self.assertEqual(statuses, ["exact", "exact", "exact", "approximate", "approximate", "missing"])
+
+    def test_every_example_has_a_document(self):
+        for example in load_examples():
+            self.assertGreater(len(example["document"].split()), 20)
+            self.assertIn("«", example["answer"])
 
 
 if __name__ == "__main__":

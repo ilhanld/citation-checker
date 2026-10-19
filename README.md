@@ -47,7 +47,7 @@ report["sourced"], report["score"], report["missing"], report["approximate"]
 python3 app.py
 ```
 
-Ouvre `http://127.0.0.1:8765` : deux champs seulement, le **document** et la **réponse d'une IA** (avec ses citations entre guillemets). Un clic sur « Vérifier » repère les passages cités et classe chacun : exacte / à relire / introuvable. Pour les citations « à relire », la page montre la phrase la plus proche du document avec le mot qui diffère surligné. Une liste d'exemples prédéfinis remplit les deux champs.
+Ouvre `http://127.0.0.1:8765` : deux champs seulement, le **document** et la **réponse d'une IA** (avec ses citations entre guillemets). Un clic sur « Vérifier » repère les passages cités et classe chacun : exacte / à relire / introuvable. Pour les citations « à relire », la page montre la phrase la plus proche du document avec le mot qui diffère surligné. Une liste d'exemples prédéfinis remplit les deux champs : ils sont fictifs, écrits pour la démonstration, et définis dans `examples/exemples.json` (on peut en ajouter sans toucher au code). Le verdict, lui, est toujours calculé à partir de ce qui est dans les deux champs.
 
 Un bloc replié « Je n'ai pas encore de réponse d'IA » ouvre Claude ou ChatGPT avec un prompt déjà rempli (ou le copie si le document est trop long pour un lien). Le document ne part chez l'IA que si on clique sur l'un de ces boutons ; sinon, aucune dépendance (bibliothèque standard) et le serveur n'écoute que sur `127.0.0.1`.
 

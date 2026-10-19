@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Bail d'une page : réponse d'IA avec plusieurs types d'erreurs",
+    "document_file": "bail_habitation.txt",
+    "answer": "Le logement est loué pour trois ans, avec un loyer de 900 euros par mois. Le dépôt de garantie est rendu rapidement et le locataire peut partir avec un préavis court. Il peut aussi sous-louer s'il le souhaite.\n\nSources :\n« Le bail est conclu pour une durée de trois ans à compter du 1er janvier 2026. »\n« Le loyer mensuel est fixé à 900 euros, charges non comprises. »\n« le locataire s'engage a assurer le logement contre les risques locatifs »\n« Le dépôt de garantie est fixé à 1 800 euros et restitué dans un délai de un mois à compter de la remise des clés. »\n« Les animaux domestiques sont autorisés, à l'exception des chiens de deuxième catégorie. »\n« Le locataire peut sous-louer le logement sans l'accord du bailleur. »"
+  },
+  {
+    "name": "Bail d'une page : réponse entièrement correcte",
+    "document_file": "bail_habitation.txt",
+    "answer": "Le loyer est de 900 euros hors charges et le bail dure trois ans.\n\nSources :\n« Le loyer mensuel est fixé à 900 euros, charges non comprises. »\n« Le bail est conclu pour une durée de trois ans à compter du 1er janvier 2026. »\n« Le préavis du locataire est de trois mois, réduit à un mois en zone tendue ou en cas de mutation professionnelle. »"
+  },
+  {
+    "name": "Acte de vente : une date modifiée (2027 devenu 2028)",
+    "document_file": "acte_vente.txt",
+    "answer": "Le bien est vendu libre de toute occupation et sans servitude.\n\nSources :\n« Le vendeur déclare que le bien est libre de toute hypothèque. »\n« Le bien est vendu occupé par un locataire jusqu'au 30 juin 2028. »\n« Le bien est vendu libre de toute occupation et sans servitude. »"
+  }
+]

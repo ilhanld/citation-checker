@@ -28,35 +28,12 @@ def analyse(document, citations):
     return report
 
 
-BAIL = ("Le locataire verse un loyer de 900 euros par mois. "
-        "Le bail dure trois ans à compter du 1er janvier 2026. "
-        "Le dépôt de garantie est de 1 800 euros.")
-
-
-def with_sources(text, citations):
-    """Réponse d'IA complète : un texte, puis ses sources entre guillemets."""
-    return text + "\n\nSources :\n" + "\n".join(f"« {c} »" for c in citations)
-
-
 def load_examples():
-    """Exemples prédéfinis : le premier vient des fichiers du dossier examples/, les autres sont courts."""
-    acte = (HERE / "examples" / "acte_vente.txt").read_text(encoding="utf-8")
-    inventee = json.loads((HERE / "examples" / "reponse_inventee.json").read_text(encoding="utf-8"))
-    ok = json.loads((HERE / "examples" / "reponse_ok.json").read_text(encoding="utf-8"))
-    return [
-        {"name": "Bail : exemple simple (un montant modifié)", "document": BAIL,
-         "answer": with_sources("Le dépôt de garantie est de 2 000 euros.",
-                                ["Le locataire verse un loyer de 900 euros par mois.",
-                                 "Le dépôt de garantie est de 2 000 euros."])},
-        {"name": "Acte de vente : une date modifiée (2027 devenu 2028)", "document": acte,
-         "answer": with_sources(inventee["text"], inventee["citations"])},
-        {"name": "Acte de vente : toutes les citations sont exactes", "document": acte,
-         "answer": with_sources(ok["text"], ok["citations"])},
-        {"name": "Bail : citations entièrement inventées", "document": BAIL,
-         "answer": with_sources("Le locataire peut sous-louer.",
-                                ["Le locataire peut sous-louer librement le logement.",
-                                 "Le préavis de départ est de huit jours."])},
-    ]
+    """Exemples prédéfinis, lus dans examples/exemples.json (les textes sont dans des fichiers du même dossier)."""
+    folder = HERE / "examples"
+    entries = json.loads((folder / "exemples.json").read_text(encoding="utf-8"))
+    return [{"name": e["name"], "answer": e["answer"],
+             "document": (folder / e["document_file"]).read_text(encoding="utf-8")} for e in entries]
 
 
 PAGE = r"""<!doctype html>
