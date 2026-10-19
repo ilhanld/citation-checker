@@ -19,7 +19,7 @@ def analyse(document, citations):
     """Rapport JSON : le verdict global et, pour chaque citation, la phrase proche et la différence."""
     report = verify_answer(document, {"citations": citations})
     for r in report["results"]:
-        if r["status"] != "exact":
+        if r["status"] == "approximate":
             passage, _ = closest_sentence(document, r["citation"])
             left, right = diff_words(r["citation"], passage)
             r["passage"] = passage
@@ -28,10 +28,29 @@ def analyse(document, citations):
     return report
 
 
-def load_example():
-    document = (HERE / "examples" / "acte_vente.txt").read_text(encoding="utf-8")
-    answer = json.loads((HERE / "examples" / "reponse_inventee.json").read_text(encoding="utf-8"))
-    return {"document": document, "citations": "\n".join(answer["citations"])}
+BAIL = ("Le locataire verse un loyer de 900 euros par mois. "
+        "Le bail dure trois ans à compter du 1er janvier 2026. "
+        "Le dépôt de garantie est de 1 800 euros.")
+
+
+def load_examples():
+    """Exemples prédéfinis : le premier vient des fichiers du dossier examples/, les autres sont courts."""
+    acte = (HERE / "examples" / "acte_vente.txt").read_text(encoding="utf-8")
+    inventee = json.loads((HERE / "examples" / "reponse_inventee.json").read_text(encoding="utf-8"))
+    ok = json.loads((HERE / "examples" / "reponse_ok.json").read_text(encoding="utf-8"))
+    return [
+        {"name": "Acte de vente : une date modifiée (2027 devenu 2028)",
+         "document": acte, "citations": "\n".join(inventee["citations"])},
+        {"name": "Acte de vente : toutes les citations sont exactes",
+         "document": acte, "citations": "\n".join(ok["citations"])},
+        {"name": "Bail : un montant modifié (1 800 devenu 2 000)", "document": BAIL,
+         "citations": "Le locataire verse un loyer de 900 euros par mois.\n"
+                      "Le bail dure trois ans à compter du 1er janvier 2026.\n"
+                      "Le dépôt de garantie est de 2 000 euros."},
+        {"name": "Bail : citations entièrement inventées", "document": BAIL,
+         "citations": "Le locataire peut sous-louer librement le logement.\n"
+                      "Le préavis de départ est de huit jours."},
+    ]
 
 
 PAGE = """<!doctype html>
@@ -50,7 +69,7 @@ PAGE = """<!doctype html>
   textarea { width:100%; min-height:220px; padding:10px; font:inherit; color:inherit; background:var(--card);
              border:1px solid var(--line); border-radius:8px; resize:vertical; }
   .actions { margin:16px 0; display:flex; gap:10px; flex-wrap:wrap; }
-  button { font:inherit; padding:8px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card);
+  select, button { font:inherit; padding:8px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card);
            color:inherit; cursor:pointer; } button.main { background:var(--fg); color:var(--bg); border-color:var(--fg); }
   .verdict { padding:12px 16px; border-radius:8px; font-weight:600; margin-bottom:12px; border:1px solid var(--line); }
   .verdict.yes { color:var(--ok); } .verdict.no { color:var(--ko); }
@@ -62,6 +81,10 @@ PAGE = """<!doctype html>
   .exact .tag { color:var(--ok); } .approximate .tag { color:var(--warn); } .missing .tag { color:var(--ko); }
   .cmp { margin-top:8px; font-size:.95rem; } .cmp small { opacity:.7; display:block; }
   mark { background:rgba(179,38,30,.25); color:inherit; border-radius:3px; padding:0 2px; }
+  input[type=text] { width:100%; padding:8px 10px; font:inherit; color:inherit; background:var(--card);
+                     border:1px solid var(--line); border-radius:8px; }
+  .ask { margin-top:20px; padding:14px; border:1px dashed var(--line); border-radius:8px; }
+  .ask textarea { min-height:110px; } .hint { font-size:.85rem; opacity:.75; margin:6px 0 0; }
   footer { margin-top:32px; font-size:.85rem; opacity:.7; }
 </style></head><body><main>
 <h1>Vérificateur de citations</h1>
@@ -70,7 +93,20 @@ PAGE = """<!doctype html>
   <div><label for="doc">Document source</label><textarea id="doc"></textarea></div>
   <div><label for="cit">Citations de la réponse (une par ligne)</label><textarea id="cit"></textarea></div>
 </div>
-<div class="actions"><button class="main" id="go">Vérifier</button><button id="ex">Charger l'exemple</button></div>
+<div class="ask">
+  <label for="q">Pas encore de citations ? Pose une question à une IA sur ce document</label>
+  <input type="text" id="q" placeholder="Ex. : Quel est le montant du dépôt de garantie ?">
+  <div class="actions">
+    <button id="askClaude">Demander à Claude</button>
+    <button id="askGpt">Demander à ChatGPT</button>
+    <button id="copyPrompt">Copier le prompt</button>
+  </div>
+  <p class="hint" id="askHint">Le texte du document part chez l'IA choisie seulement quand tu cliques sur l'un de ces boutons.</p>
+  <label for="ans">Colle ici la réponse de l'IA</label>
+  <textarea id="ans" placeholder="La réponse de l'IA, avec ses passages entre guillemets"></textarea>
+  <div class="actions"><button id="extract">Extraire les citations et vérifier</button></div>
+</div>
+<div class="actions"><button class="main" id="go">Vérifier</button><select id="ex" aria-label="Exemples prédéfinis"><option value="">Charger un exemple...</option></select></div>
 <div id="out" aria-live="polite"></div>
 <footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement. Tout reste sur ton ordinateur.</footer>
 </main>
@@ -86,7 +122,9 @@ function render(report) {
   for (const r of report.results) {
     html += '<div class="item ' + r.status + '"><span class="tag">' + LABEL[r.status] +
       " (" + r.similarity.toFixed(2) + ")</span><div>" + esc(r.citation) + "</div>";
-    if (r.status !== "exact") {
+    if (r.status === "missing") {
+      html += '<div class="cmp"><small>Aucune phrase comparable dans le document.</small></div>';
+    } else if (r.status === "approximate") {
       html += '<div class="cmp"><small>Citation</small>' + words(r.diff_citation) +
         "<small>Phrase la plus proche du document</small>" + words(r.diff_passage) + "</div>";
     }
@@ -101,9 +139,55 @@ $("go").onclick = async () => {
     body: JSON.stringify({ document: $("doc").value, citations }) });
   render(await res.json());
 };
-$("ex").onclick = async () => {
-  const ex = await (await fetch("/example")).json();
-  $("doc").value = ex.document; $("cit").value = ex.citations; $("go").click();
+const MAX_URL = 6000;
+function buildPrompt() {
+  const q = $("q").value.trim() || "Résume les engagements essentiels de ce document.";
+  return "Voici un document. Réponds à ma question en t'appuyant uniquement sur ce document, et cite entre guillemets « » " +
+    "chaque passage exact (mot pour mot) sur lequel tu t'appuies.\\n\\nQuestion : " + q + "\\n\\nDocument :\\n" + $("doc").value;
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+}
+async function ask(base) {
+  if (!$("doc").value.trim()) { $("askHint").textContent = "Colle d'abord un document dans la zone de gauche."; return; }
+  const prompt = buildPrompt(), url = base + encodeURIComponent(prompt);
+  if (url.length <= MAX_URL) {
+    window.open(url, "_blank", "noopener");
+    $("askHint").textContent = "L'IA s'ouvre dans un nouvel onglet avec le prompt rempli. Copie sa réponse et colle-la ci-dessous.";
+  } else {
+    const ok = await copyText(prompt);
+    window.open(base.split("?")[0], "_blank", "noopener");
+    $("askHint").textContent = ok ? "Document trop long pour un lien : le prompt est copié, colle-le dans l'IA qui vient de s'ouvrir."
+                                  : "Document trop long pour un lien : utilise « Copier le prompt » puis colle-le dans l'IA.";
+  }
+}
+$("askClaude").onclick = () => ask("https://claude.ai/new?q=");
+$("askGpt").onclick = () => ask("https://chatgpt.com/?q=");
+$("copyPrompt").onclick = async () => {
+  $("askHint").textContent = (await copyText(buildPrompt())) ? "Prompt copié." : "Copie impossible : sélectionne le texte à la main.";
+};
+$("extract").onclick = () => {
+  const found = [], re = /«\\s*([^»]+?)\\s*»|“([^”]+)”|"([^"]+)"/g;
+  let m;
+  while ((m = re.exec($("ans").value)) !== null) {
+    const quote = (m[1] || m[2] || m[3] || "").trim();
+    if (quote.length >= 15 && !found.includes(quote)) found.push(quote);
+  }
+  if (!found.length) { $("askHint").textContent = "Aucun passage entre guillemets trouvé dans la réponse."; return; }
+  $("cit").value = found.join("\\n");
+  $("askHint").textContent = found.length + " citation(s) extraite(s).";
+  $("go").click();
+};
+
+let EXAMPLES = [];
+fetch("/examples").then(r => r.json()).then(list => {
+  EXAMPLES = list;
+  list.forEach((e, i) => { const o = document.createElement("option"); o.value = i; o.textContent = e.name; $("ex").appendChild(o); });
+});
+$("ex").onchange = () => {
+  const e = EXAMPLES[$("ex").value];
+  if (!e) return;
+  $("doc").value = e.document; $("cit").value = e.citations; $("go").click();
 };
 </script></body></html>
 """
@@ -121,8 +205,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self._send(PAGE, "text/html")
-        elif self.path == "/example":
-            self._send(json.dumps(load_example()), "application/json")
+        elif self.path == "/examples":
+            self._send(json.dumps(load_examples()), "application/json")
         else:
             self._send("Introuvable", "text/plain", 404)
 

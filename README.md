@@ -47,7 +47,7 @@ report["sourced"], report["score"], report["missing"], report["approximate"]
 python3 app.py
 ```
 
-Ouvre `http://127.0.0.1:8765` : on colle un document et les citations (une par ligne), le bouton « Charger l'exemple » remplit la démo. Chaque citation est classée exacte / à relire / introuvable, avec la phrase la plus proche du document et le mot qui diffère surligné. Aucune dépendance (bibliothèque standard), le serveur n'écoute que sur `127.0.0.1` : le texte saisi ne quitte pas la machine.
+Ouvre `http://127.0.0.1:8765` : on colle un document et les citations (une par ligne), une liste d'exemples prédéfinis remplit les deux zones (date modifiée, montant modifié, citations inventées, tout exact). Chaque citation est classée exacte / à relire / introuvable, avec, pour les citations « à relire », la phrase la plus proche du document et le mot qui diffère surligné. Un bloc « Demander à une IA » ferme la boucle : on écrit une question, un bouton ouvre Claude ou ChatGPT avec le prompt déjà rempli (ou le copie si le document est trop long pour un lien), on recolle la réponse, et l'outil en extrait les passages entre guillemets pour les vérifier. Le texte du document ne part chez l'IA que si on clique sur l'un de ces boutons ; sinon, aucune dépendance (bibliothèque standard) et le serveur n'écoute que sur `127.0.0.1`.
 
 ## Tests
 
