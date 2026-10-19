@@ -55,9 +55,15 @@ Ouvre `http://127.0.0.1:8765`, en trois étapes :
 
 Aucune réponse d'IA n'est pré-écrite dans les exemples : la réponse vient d'une vraie IA, et le verdict est toujours calculé à partir de ce qui est dans les champs. Aucune dépendance (bibliothèque standard) ; le serveur n'écoute que sur `127.0.0.1`.
 
-## Hébergement
+## Hébergement (Docker)
 
-Par défaut le serveur n'écoute que sur `127.0.0.1`. Pour l'héberger : `NO_BROWSER=1 PORT=8765 python3 app.py` derrière un proxy HTTPS (nginx), le serveur écoutant seulement en local. Les textes reçus ne sont ni enregistrés ni journalisés, et des limites protègent le serveur (document : 40 000 caractères, 15 citations). Le texte collé est envoyé au serveur pour être vérifié : à ne pas utiliser avec des documents confidentiels.
+```bash
+docker compose up -d --build
+```
+
+Le conteneur tourne sans droits root, en lecture seule, avec 256 Mo de mémoire maximum, et n'est publié que sur `127.0.0.1:8765` de la machine : c'est un proxy HTTPS (nginx) placé devant qui l'expose. Les textes reçus ne sont ni enregistrés ni journalisés, et des limites protègent le serveur (document : 40 000 caractères, 15 citations). Le texte collé est envoyé au serveur pour être vérifié : à ne pas utiliser avec des documents confidentiels.
+
+Sans Docker : `NO_BROWSER=1 PORT=8765 python3 app.py`.
 
 ## Tests
 

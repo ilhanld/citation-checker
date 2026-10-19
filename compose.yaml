@@ -1,0 +1,12 @@
+services:
+  citation-checker:
+    build: .
+    restart: unless-stopped
+    # Publié seulement sur 127.0.0.1 de la machine : c'est nginx qui l'expose en HTTPS.
+    ports:
+      - "127.0.0.1:8765:8765"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 100
