@@ -91,13 +91,19 @@ def closest_sentence(document, citation):
     return best, round(best_score, 2)
 
 
+def word_key(word):
+    """Mot normalisé sans ponctuation de bord : « mois, » et « mois » ne sont pas une différence."""
+    return re.sub(r"^\W+|\W+$", "", normalize(word))
+
+
 def diff_words(citation, passage):
     """Compare mot à mot. Retourne deux listes de (mot, différent?) : côté citation, côté document."""
     a, b = citation.split(), passage.split()
-    ops = SequenceMatcher(None, [normalize(w) for w in a], [normalize(w) for w in b]).get_opcodes()
+    ops = SequenceMatcher(None, [word_key(w) for w in a], [word_key(w) for w in b]).get_opcodes()
     left, right = [], []
     for tag, i1, i2, j1, j2 in ops:
-        changed = tag != "equal"
+        # la fin de la phrase du document que la citation n'a pas reprise n'est pas une différence
+        changed = tag != "equal" and not (tag == "insert" and j2 == len(b))
         left += [(w, changed) for w in a[i1:i2]]
         right += [(w, changed) for w in b[j1:j2]]
     return left, right

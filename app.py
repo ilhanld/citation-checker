@@ -29,10 +29,11 @@ def analyse(document, citations):
 
 
 def load_examples():
-    """Exemples prédéfinis, lus dans examples/exemples.json (les textes sont dans des fichiers du même dossier)."""
+    """Documents d'exemple (fictifs) lus dans examples/exemples.json, avec une question suggérée.
+    Aucune réponse d'IA n'est pré-écrite : elle vient d'une vraie IA ou du collage de l'utilisateur."""
     folder = HERE / "examples"
     entries = json.loads((folder / "exemples.json").read_text(encoding="utf-8"))
-    return [{"name": e["name"], "answer": e["answer"],
+    return [{"name": e["name"], "question": e.get("question", ""),
              "document": (folder / e["document_file"]).read_text(encoding="utf-8")} for e in entries]
 
 
@@ -40,56 +41,77 @@ PAGE = r"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Vérificateur de citations</title>
 <style>
-  :root { --bg:#faf9f6; --fg:#1d1d1b; --card:#fff; --line:#ddd9d0; --ok:#1f7a3d; --warn:#b36b00; --ko:#b3261e; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#efede8; --card:#201f1c; --line:#3a3833; } }
+  :root { --bg:#f6f4ef; --fg:#1d1d1b; --muted:#6b6860; --card:#fff; --line:#e1ddd3; --accent:#2f3a56;
+          --ok:#1f7a3d; --ok-bg:#e6f3ea; --warn:#9a5b00; --warn-bg:#fbf0dc; --ko:#b3261e; --ko-bg:#fbe7e5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141413; --fg:#efede8; --muted:#a09c92; --card:#1f1e1b; --line:#37352f; --accent:#8fa2d6;
+            --ok:#6fcf8e; --ok-bg:#16301f; --warn:#f0b45a; --warn-bg:#33270f; --ko:#ff8a80; --ko-bg:#3a1b19; } }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,sans-serif; }
-  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:1.4rem; margin:0 0 4px; } p.sub { margin:0 0 20px; opacity:.75; }
-  .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:700px) { .cols { grid-template-columns:1fr; } }
-  label { display:block; font-weight:600; margin-bottom:6px; }
-  textarea, input[type=text] { width:100%; padding:10px; font:inherit; color:inherit; background:var(--card);
-             border:1px solid var(--line); border-radius:8px; }
-  textarea { min-height:240px; resize:vertical; }
-  .actions { margin:16px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  select, button { font:inherit; padding:8px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card);
-           color:inherit; cursor:pointer; } button.main { background:var(--fg); color:var(--bg); border-color:var(--fg); }
-  details { margin-bottom:16px; } summary { cursor:pointer; opacity:.8; }
-  details .actions { margin:10px 0 4px; } .hint { font-size:.85rem; opacity:.75; margin:6px 0 0; }
-  .verdict { padding:12px 16px; border-radius:8px; font-weight:600; margin-bottom:12px; border:1px solid var(--line); }
-  .verdict.yes { color:var(--ok); } .verdict.no { color:var(--ko); }
-  .item { background:var(--card); border:1px solid var(--line); border-left-width:6px; border-radius:8px;
-          padding:10px 14px; margin-bottom:10px; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:32px 16px 72px; }
+  header { margin-bottom:24px; }
+  h1 { font-size:1.6rem; margin:0 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0; color:var(--muted); max-width:62ch; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+  .step h2 { font-size:1.05rem; margin:0 0 12px; display:flex; align-items:center; gap:10px; }
+  .n { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--accent);
+       color:var(--bg); font-size:.85rem; font-weight:700; flex:none; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  textarea, input[type=text], select { width:100%; padding:10px 12px; font:inherit; color:inherit; background:var(--bg);
+             border:1px solid var(--line); border-radius:10px; }
+  textarea { min-height:170px; resize:vertical; line-height:1.5; }
+  textarea:focus, input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  select { width:auto; max-width:100%; margin-bottom:10px; }
+  button { font:inherit; padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:var(--card);
+           color:inherit; cursor:pointer; } button:hover { border-color:var(--accent); }
+  button.main { background:var(--accent); color:var(--bg); border-color:var(--accent); font-weight:600; padding:10px 22px; }
+  .hint { font-size:.88rem; color:var(--muted); margin:10px 0 0; }
+  .summary { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 4px; }
+  .chip { padding:4px 12px; border-radius:999px; font-size:.88rem; font-weight:600; }
+  .chip.exact { background:var(--ok-bg); color:var(--ok); } .chip.approximate { background:var(--warn-bg); color:var(--warn); }
+  .chip.missing { background:var(--ko-bg); color:var(--ko); }
+  .verdict { padding:14px 18px; border-radius:12px; font-weight:700; font-size:1.05rem; }
+  .verdict.yes { background:var(--ok-bg); color:var(--ok); } .verdict.no { background:var(--ko-bg); color:var(--ko); }
+  .item { background:var(--card); border:1px solid var(--line); border-left:6px solid var(--line); border-radius:10px;
+          padding:12px 16px; margin-top:10px; }
   .item.exact { border-left-color:var(--ok); } .item.approximate { border-left-color:var(--warn); }
   .item.missing { border-left-color:var(--ko); }
-  .tag { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .tag { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
   .exact .tag { color:var(--ok); } .approximate .tag { color:var(--warn); } .missing .tag { color:var(--ko); }
-  .cmp { margin-top:8px; font-size:.95rem; } .cmp small { opacity:.7; display:block; }
-  mark { background:rgba(179,38,30,.25); color:inherit; border-radius:3px; padding:0 2px; }
-  footer { margin-top:32px; font-size:.85rem; opacity:.7; }
+  .quote { margin-top:2px; }
+  .cmp { margin-top:10px; font-size:.93rem; padding-top:8px; border-top:1px dashed var(--line); }
+  .cmp small { display:block; color:var(--muted); margin-top:4px; }
+  mark { background:var(--ko-bg); color:var(--ko); font-weight:700; border-radius:3px; padding:0 3px; }
+  footer { margin-top:28px; font-size:.85rem; color:var(--muted); }
 </style></head><body><main>
-<h1>Vérificateur de citations</h1>
-<p class="sub">Colle un document et la réponse d'une IA. L'outil vérifie que les passages qu'elle cite entre guillemets existent vraiment dans le document.</p>
-<div class="cols">
-  <div><label for="doc">1. Le document</label><textarea id="doc"></textarea></div>
-  <div><label for="ans">2. La réponse de l'IA (avec ses citations entre guillemets)</label><textarea id="ans"></textarea></div>
-</div>
-<div class="actions">
-  <button class="main" id="go">Vérifier</button>
-  <select id="ex" aria-label="Exemples prédéfinis"><option value="">Charger un exemple...</option></select>
-</div>
-<details>
-  <summary>Je n'ai pas encore de réponse d'IA</summary>
-  <label for="q" style="margin-top:10px">Ta question sur le document</label>
-  <input type="text" id="q" placeholder="Ex. : Quel est le montant du dépôt de garantie ?">
-  <div class="actions">
+<header>
+  <h1>Vérificateur de citations</h1>
+  <p class="sub">Une IA qui répond sur un document peut inventer ou déformer ses citations. Cet outil vérifie que chaque passage cité existe vraiment dans le document.</p>
+</header>
+
+<section class="step">
+  <h2><span class="n">1</span> Le document</h2>
+  <select id="ex" aria-label="Documents d'exemple"><option value="">Charger un document d'exemple...</option></select>
+  <textarea id="doc" placeholder="Colle ici le texte du document (contrat, acte, article...)"></textarea>
+</section>
+
+<section class="step">
+  <h2><span class="n">2</span> Demander à une IA</h2>
+  <input type="text" id="q" placeholder="Ta question sur le document">
+  <div class="row">
     <button id="askClaude">Demander à Claude</button>
     <button id="askGpt">Demander à ChatGPT</button>
     <button id="copyPrompt">Copier le prompt</button>
   </div>
-  <p class="hint" id="askHint">Le document part chez l'IA choisie seulement quand tu cliques sur l'un de ces boutons. Copie ensuite sa réponse dans le champ 2.</p>
-</details>
+  <p class="hint" id="askHint">L'IA s'ouvre dans un nouvel onglet avec le prompt déjà rempli. Le document ne part chez elle que si tu cliques ici. Copie ensuite sa réponse.</p>
+</section>
+
+<section class="step">
+  <h2><span class="n">3</span> La réponse de l'IA</h2>
+  <textarea id="ans" placeholder="Colle ici la réponse de l'IA, avec ses citations entre guillemets"></textarea>
+  <div class="row"><button class="main" id="go">Vérifier les citations</button></div>
+</section>
+
 <div id="out" aria-live="polite"></div>
 <footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement.</footer>
 </main>
@@ -110,26 +132,32 @@ function extractQuotes(text) {
 }
 
 function render(report) {
+  const count = status => report.results.filter(r => r.status === status).length;
   let html = '<div class="verdict ' + (report.sourced ? "yes" : "no") + '">' +
-    (report.sourced ? "Réponse sourcée" : "Réponse NON sourcée") + " - score " + report.score + "</div>";
+    (report.sourced ? "Réponse sourcée" : "Réponse NON sourcée") + " (score " + report.score + ")</div>" +
+    '<div class="summary"><span class="chip exact">' + count("exact") + " exacte(s)</span>" +
+    '<span class="chip approximate">' + count("approximate") + " à relire</span>" +
+    '<span class="chip missing">' + count("missing") + " introuvable(s)</span></div>";
   for (const r of report.results) {
     html += '<div class="item ' + r.status + '"><span class="tag">' + LABEL[r.status] +
-      " (" + r.similarity.toFixed(2) + ")</span><div>" + esc(r.citation) + "</div>";
+      " - ressemblance " + r.similarity.toFixed(2) + '</span><div class="quote">' + esc(r.citation) + "</div>";
     if (r.status === "missing") {
       html += '<div class="cmp"><small>Aucune phrase comparable dans le document.</small></div>';
     } else if (r.status === "approximate") {
-      html += '<div class="cmp"><small>Citation</small>' + words(r.diff_citation) +
-        "<small>Phrase la plus proche du document</small>" + words(r.diff_passage) + "</div>";
+      html += '<div class="cmp"><small>Citation de l\'IA</small>' + words(r.diff_citation) +
+        "<small>Phrase la plus proche dans le document</small>" + words(r.diff_passage) + "</div>";
     }
     html += "</div>";
   }
   $("out").innerHTML = html;
+  $("out").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 $("go").onclick = async () => {
+  if (!$("doc").value.trim()) { $("out").innerHTML = '<div class="verdict no">Colle d\'abord un document (étape 1).</div>'; return; }
   const citations = extractQuotes($("ans").value);
   if (!citations.length) {
-    $("out").innerHTML = '<div class="verdict no">Aucune citation entre guillemets trouvée dans la réponse : elle n\'est donc pas sourcée.</div>';
+    $("out").innerHTML = '<div class="verdict no">Aucune citation entre guillemets dans la réponse : elle n\'est donc pas sourcée.</div>';
     return;
   }
   const res = await fetch("/verify", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -147,11 +175,11 @@ async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
 }
 async function ask(base) {
-  if (!$("doc").value.trim()) { $("askHint").textContent = "Colle d'abord un document dans le champ 1."; return; }
+  if (!$("doc").value.trim()) { $("askHint").textContent = "Colle d'abord un document (étape 1)."; return; }
   const prompt = buildPrompt(), url = base + encodeURIComponent(prompt);
   if (url.length <= MAX_URL) {
     window.open(url, "_blank", "noopener");
-    $("askHint").textContent = "L'IA s'ouvre dans un nouvel onglet. Copie sa réponse et colle-la dans le champ 2.";
+    $("askHint").textContent = "L'IA s'est ouverte dans un nouvel onglet. Copie sa réponse et colle-la à l'étape 3.";
   } else {
     const ok = await copyText(prompt);
     window.open(base.split("?")[0], "_blank", "noopener");
@@ -162,20 +190,21 @@ async function ask(base) {
 $("askClaude").onclick = () => ask("https://claude.ai/new?q=");
 $("askGpt").onclick = () => ask("https://chatgpt.com/?q=");
 $("copyPrompt").onclick = async () => {
-  $("askHint").textContent = (await copyText(buildPrompt())) ? "Prompt copié." : "Copie impossible : sélectionne le texte à la main.";
+  $("askHint").textContent = (await copyText(buildPrompt())) ? "Prompt copié. Colle-le dans l'IA de ton choix." : "Copie impossible : sélectionne le texte à la main.";
 };
 
 let EXAMPLES = [];
+function loadExample(i) {
+  const e = EXAMPLES[i];
+  if (!e) return;
+  $("doc").value = e.document; $("q").value = e.question; $("ans").value = ""; $("out").innerHTML = "";
+}
 fetch("/examples").then(r => r.json()).then(list => {
   EXAMPLES = list;
   list.forEach((e, i) => { const o = document.createElement("option"); o.value = i; o.textContent = e.name; $("ex").appendChild(o); });
-  if (!$("doc").value && !$("ans").value && list.length) { $("ex").value = 0; $("ex").onchange(); }
+  if (!$("doc").value && list.length) { $("ex").value = 0; loadExample(0); }
 });
-$("ex").onchange = () => {
-  const e = EXAMPLES[$("ex").value];
-  if (!e) return;
-  $("doc").value = e.document; $("ans").value = e.answer; $("go").click();
-};
+$("ex").onchange = () => loadExample($("ex").value);
 </script></body></html>
 """
 

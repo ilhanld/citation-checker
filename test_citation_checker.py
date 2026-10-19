@@ -123,6 +123,10 @@ class TestInterface(unittest.TestCase):
         self.assertEqual([w for w, changed in left if changed], ["2028"])
         self.assertEqual([w for w, changed in right if changed], ["2027"])
 
+    def test_diff_words_ignores_the_unquoted_end_of_the_passage(self):
+        left, right = diff_words("le delai est de un mois", "le delai est de deux mois, sauf accord contraire")
+        self.assertEqual([w for w, changed in right if changed], ["deux"])
+
     def test_analyse_adds_comparison_only_for_non_exact(self):
         report = analyse(DOC, ["Une servitude de passage grève la parcelle.",
                                "Une servitude de passage grève les deux parcelles."])
@@ -130,16 +134,22 @@ class TestInterface(unittest.TestCase):
         self.assertIn("passage", report["results"][1])
         self.assertFalse(report["sourced"])
 
-    def test_long_example_gives_each_kind_of_result(self):
-        example = load_examples()[0]
-        quotes = re.findall(r"«\s*([^»]+?)\s*»", example["answer"])
-        statuses = [r["status"] for r in analyse(example["document"], quotes)["results"]]
-        self.assertEqual(statuses, ["exact", "exact", "exact", "approximate", "approximate", "missing"])
+    def test_long_example_document_gives_each_kind_of_result(self):
+        document = load_examples()[0]["document"]
+        quotes = [
+            "Le loyer mensuel est fixé à 900 euros, charges non comprises.",
+            "le locataire s'engage a assurer le logement contre les risques locatifs",
+            "Le dépôt de garantie est fixé à 1 800 euros et restitué dans un délai de un mois à compter de la remise des clés.",
+            "Le locataire peut sous-louer le logement sans l'accord du bailleur.",
+        ]
+        statuses = [r["status"] for r in analyse(document, quotes)["results"]]
+        self.assertEqual(statuses, ["exact", "exact", "approximate", "missing"])
 
-    def test_every_example_has_a_document(self):
+    def test_examples_have_a_document_and_a_question_but_no_prewritten_answer(self):
         for example in load_examples():
             self.assertGreater(len(example["document"].split()), 20)
-            self.assertIn("«", example["answer"])
+            self.assertTrue(example["question"])
+            self.assertNotIn("answer", example)
 
 
 if __name__ == "__main__":
