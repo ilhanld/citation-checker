@@ -33,27 +33,33 @@ BAIL = ("Le locataire verse un loyer de 900 euros par mois. "
         "Le dépôt de garantie est de 1 800 euros.")
 
 
+def with_sources(text, citations):
+    """Réponse d'IA complète : un texte, puis ses sources entre guillemets."""
+    return text + "\n\nSources :\n" + "\n".join(f"« {c} »" for c in citations)
+
+
 def load_examples():
     """Exemples prédéfinis : le premier vient des fichiers du dossier examples/, les autres sont courts."""
     acte = (HERE / "examples" / "acte_vente.txt").read_text(encoding="utf-8")
     inventee = json.loads((HERE / "examples" / "reponse_inventee.json").read_text(encoding="utf-8"))
     ok = json.loads((HERE / "examples" / "reponse_ok.json").read_text(encoding="utf-8"))
     return [
-        {"name": "Acte de vente : une date modifiée (2027 devenu 2028)",
-         "document": acte, "citations": "\n".join(inventee["citations"])},
-        {"name": "Acte de vente : toutes les citations sont exactes",
-         "document": acte, "citations": "\n".join(ok["citations"])},
+        {"name": "Acte de vente : une date modifiée (2027 devenu 2028)", "document": acte,
+         "answer": with_sources(inventee["text"], inventee["citations"])},
+        {"name": "Acte de vente : toutes les citations sont exactes", "document": acte,
+         "answer": with_sources(ok["text"], ok["citations"])},
         {"name": "Bail : un montant modifié (1 800 devenu 2 000)", "document": BAIL,
-         "citations": "Le locataire verse un loyer de 900 euros par mois.\n"
-                      "Le bail dure trois ans à compter du 1er janvier 2026.\n"
-                      "Le dépôt de garantie est de 2 000 euros."},
+         "answer": with_sources("Le dépôt de garantie est de 2 000 euros.",
+                                ["Le locataire verse un loyer de 900 euros par mois.",
+                                 "Le dépôt de garantie est de 2 000 euros."])},
         {"name": "Bail : citations entièrement inventées", "document": BAIL,
-         "citations": "Le locataire peut sous-louer librement le logement.\n"
-                      "Le préavis de départ est de huit jours."},
+         "answer": with_sources("Le locataire peut sous-louer.",
+                                ["Le locataire peut sous-louer librement le logement.",
+                                 "Le préavis de départ est de huit jours."])},
     ]
 
 
-PAGE = """<!doctype html>
+PAGE = r"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Vérificateur de citations</title>
 <style>
@@ -66,11 +72,14 @@ PAGE = """<!doctype html>
   .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   @media (max-width:700px) { .cols { grid-template-columns:1fr; } }
   label { display:block; font-weight:600; margin-bottom:6px; }
-  textarea { width:100%; min-height:220px; padding:10px; font:inherit; color:inherit; background:var(--card);
-             border:1px solid var(--line); border-radius:8px; resize:vertical; }
-  .actions { margin:16px 0; display:flex; gap:10px; flex-wrap:wrap; }
+  textarea, input[type=text] { width:100%; padding:10px; font:inherit; color:inherit; background:var(--card);
+             border:1px solid var(--line); border-radius:8px; }
+  textarea { min-height:240px; resize:vertical; }
+  .actions { margin:16px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   select, button { font:inherit; padding:8px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card);
            color:inherit; cursor:pointer; } button.main { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  details { margin-bottom:16px; } summary { cursor:pointer; opacity:.8; }
+  details .actions { margin:10px 0 4px; } .hint { font-size:.85rem; opacity:.75; margin:6px 0 0; }
   .verdict { padding:12px 16px; border-radius:8px; font-weight:600; margin-bottom:12px; border:1px solid var(--line); }
   .verdict.yes { color:var(--ok); } .verdict.no { color:var(--ko); }
   .item { background:var(--card); border:1px solid var(--line); border-left-width:6px; border-radius:8px;
@@ -81,40 +90,47 @@ PAGE = """<!doctype html>
   .exact .tag { color:var(--ok); } .approximate .tag { color:var(--warn); } .missing .tag { color:var(--ko); }
   .cmp { margin-top:8px; font-size:.95rem; } .cmp small { opacity:.7; display:block; }
   mark { background:rgba(179,38,30,.25); color:inherit; border-radius:3px; padding:0 2px; }
-  input[type=text] { width:100%; padding:8px 10px; font:inherit; color:inherit; background:var(--card);
-                     border:1px solid var(--line); border-radius:8px; }
-  .ask { margin-top:20px; padding:14px; border:1px dashed var(--line); border-radius:8px; }
-  .ask textarea { min-height:110px; } .hint { font-size:.85rem; opacity:.75; margin:6px 0 0; }
   footer { margin-top:32px; font-size:.85rem; opacity:.7; }
 </style></head><body><main>
 <h1>Vérificateur de citations</h1>
-<p class="sub">Colle un document et les citations d'une réponse d'IA (une par ligne). L'outil vérifie que chaque citation existe vraiment dans le document.</p>
+<p class="sub">Colle un document et la réponse d'une IA. L'outil vérifie que les passages qu'elle cite entre guillemets existent vraiment dans le document.</p>
 <div class="cols">
-  <div><label for="doc">Document source</label><textarea id="doc"></textarea></div>
-  <div><label for="cit">Citations de la réponse (une par ligne)</label><textarea id="cit"></textarea></div>
+  <div><label for="doc">1. Le document</label><textarea id="doc"></textarea></div>
+  <div><label for="ans">2. La réponse de l'IA (avec ses citations entre guillemets)</label><textarea id="ans"></textarea></div>
 </div>
-<div class="ask">
-  <label for="q">Pas encore de citations ? Pose une question à une IA sur ce document</label>
+<div class="actions">
+  <button class="main" id="go">Vérifier</button>
+  <select id="ex" aria-label="Exemples prédéfinis"><option value="">Charger un exemple...</option></select>
+</div>
+<details>
+  <summary>Je n'ai pas encore de réponse d'IA</summary>
+  <label for="q" style="margin-top:10px">Ta question sur le document</label>
   <input type="text" id="q" placeholder="Ex. : Quel est le montant du dépôt de garantie ?">
   <div class="actions">
     <button id="askClaude">Demander à Claude</button>
     <button id="askGpt">Demander à ChatGPT</button>
     <button id="copyPrompt">Copier le prompt</button>
   </div>
-  <p class="hint" id="askHint">Le texte du document part chez l'IA choisie seulement quand tu cliques sur l'un de ces boutons.</p>
-  <label for="ans">Colle ici la réponse de l'IA</label>
-  <textarea id="ans" placeholder="La réponse de l'IA, avec ses passages entre guillemets"></textarea>
-  <div class="actions"><button id="extract">Extraire les citations et vérifier</button></div>
-</div>
-<div class="actions"><button class="main" id="go">Vérifier</button><select id="ex" aria-label="Exemples prédéfinis"><option value="">Charger un exemple...</option></select></div>
+  <p class="hint" id="askHint">Le document part chez l'IA choisie seulement quand tu cliques sur l'un de ces boutons. Copie ensuite sa réponse dans le champ 2.</p>
+</details>
 <div id="out" aria-live="polite"></div>
-<footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement. Tout reste sur ton ordinateur.</footer>
+<footer>L'outil vérifie que les citations existent, pas que la réponse les interprète correctement.</footer>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const LABEL = { exact: "Exacte", approximate: "À relire", missing: "Introuvable" };
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const words = pairs => pairs.map(([w, changed]) => changed ? "<mark>" + esc(w) + "</mark>" : esc(w)).join(" ");
+
+function extractQuotes(text) {
+  const found = [], re = /«\s*([^»]+?)\s*»|“([^”]+)”|"([^"]+)"/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const quote = (m[1] || m[2] || m[3] || "").trim();
+    if (quote.length >= 15 && !found.includes(quote)) found.push(quote);
+  }
+  return found;
+}
 
 function render(report) {
   let html = '<div class="verdict ' + (report.sourced ? "yes" : "no") + '">' +
@@ -134,26 +150,31 @@ function render(report) {
 }
 
 $("go").onclick = async () => {
-  const citations = $("cit").value.split("\\n").map(s => s.trim()).filter(Boolean);
+  const citations = extractQuotes($("ans").value);
+  if (!citations.length) {
+    $("out").innerHTML = '<div class="verdict no">Aucune citation entre guillemets trouvée dans la réponse : elle n\'est donc pas sourcée.</div>';
+    return;
+  }
   const res = await fetch("/verify", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document: $("doc").value, citations }) });
   render(await res.json());
 };
+
 const MAX_URL = 6000;
 function buildPrompt() {
   const q = $("q").value.trim() || "Résume les engagements essentiels de ce document.";
   return "Voici un document. Réponds à ma question en t'appuyant uniquement sur ce document, et cite entre guillemets « » " +
-    "chaque passage exact (mot pour mot) sur lequel tu t'appuies.\\n\\nQuestion : " + q + "\\n\\nDocument :\\n" + $("doc").value;
+    "chaque passage exact (mot pour mot) sur lequel tu t'appuies.\n\nQuestion : " + q + "\n\nDocument :\n" + $("doc").value;
 }
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
 }
 async function ask(base) {
-  if (!$("doc").value.trim()) { $("askHint").textContent = "Colle d'abord un document dans la zone de gauche."; return; }
+  if (!$("doc").value.trim()) { $("askHint").textContent = "Colle d'abord un document dans le champ 1."; return; }
   const prompt = buildPrompt(), url = base + encodeURIComponent(prompt);
   if (url.length <= MAX_URL) {
     window.open(url, "_blank", "noopener");
-    $("askHint").textContent = "L'IA s'ouvre dans un nouvel onglet avec le prompt rempli. Copie sa réponse et colle-la ci-dessous.";
+    $("askHint").textContent = "L'IA s'ouvre dans un nouvel onglet. Copie sa réponse et colle-la dans le champ 2.";
   } else {
     const ok = await copyText(prompt);
     window.open(base.split("?")[0], "_blank", "noopener");
@@ -166,18 +187,6 @@ $("askGpt").onclick = () => ask("https://chatgpt.com/?q=");
 $("copyPrompt").onclick = async () => {
   $("askHint").textContent = (await copyText(buildPrompt())) ? "Prompt copié." : "Copie impossible : sélectionne le texte à la main.";
 };
-$("extract").onclick = () => {
-  const found = [], re = /«\\s*([^»]+?)\\s*»|“([^”]+)”|"([^"]+)"/g;
-  let m;
-  while ((m = re.exec($("ans").value)) !== null) {
-    const quote = (m[1] || m[2] || m[3] || "").trim();
-    if (quote.length >= 15 && !found.includes(quote)) found.push(quote);
-  }
-  if (!found.length) { $("askHint").textContent = "Aucun passage entre guillemets trouvé dans la réponse."; return; }
-  $("cit").value = found.join("\\n");
-  $("askHint").textContent = found.length + " citation(s) extraite(s).";
-  $("go").click();
-};
 
 let EXAMPLES = [];
 fetch("/examples").then(r => r.json()).then(list => {
@@ -187,7 +196,7 @@ fetch("/examples").then(r => r.json()).then(list => {
 $("ex").onchange = () => {
   const e = EXAMPLES[$("ex").value];
   if (!e) return;
-  $("doc").value = e.document; $("cit").value = e.citations; $("go").click();
+  $("doc").value = e.document; $("ans").value = e.answer; $("go").click();
 };
 </script></body></html>
 """
