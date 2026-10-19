@@ -44,14 +44,14 @@ def load_examples():
     inventee = json.loads((HERE / "examples" / "reponse_inventee.json").read_text(encoding="utf-8"))
     ok = json.loads((HERE / "examples" / "reponse_ok.json").read_text(encoding="utf-8"))
     return [
+        {"name": "Bail : exemple simple (un montant modifié)", "document": BAIL,
+         "answer": with_sources("Le dépôt de garantie est de 2 000 euros.",
+                                ["Le locataire verse un loyer de 900 euros par mois.",
+                                 "Le dépôt de garantie est de 2 000 euros."])},
         {"name": "Acte de vente : une date modifiée (2027 devenu 2028)", "document": acte,
          "answer": with_sources(inventee["text"], inventee["citations"])},
         {"name": "Acte de vente : toutes les citations sont exactes", "document": acte,
          "answer": with_sources(ok["text"], ok["citations"])},
-        {"name": "Bail : un montant modifié (1 800 devenu 2 000)", "document": BAIL,
-         "answer": with_sources("Le dépôt de garantie est de 2 000 euros.",
-                                ["Le locataire verse un loyer de 900 euros par mois.",
-                                 "Le dépôt de garantie est de 2 000 euros."])},
         {"name": "Bail : citations entièrement inventées", "document": BAIL,
          "answer": with_sources("Le locataire peut sous-louer.",
                                 ["Le locataire peut sous-louer librement le logement.",
@@ -192,6 +192,7 @@ let EXAMPLES = [];
 fetch("/examples").then(r => r.json()).then(list => {
   EXAMPLES = list;
   list.forEach((e, i) => { const o = document.createElement("option"); o.value = i; o.textContent = e.name; $("ex").appendChild(o); });
+  if (!$("doc").value && !$("ans").value && list.length) { $("ex").value = 0; $("ex").onchange(); }
 });
 $("ex").onchange = () => {
   const e = EXAMPLES[$("ex").value];
